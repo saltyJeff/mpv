@@ -32,6 +32,7 @@ struct vksf_context {
 #if HAVE_WAYLAND
 bool vksf_wayland_init(struct ra_ctx *ctx);
 void vksf_wayland_uninit(struct ra_ctx *ctx);
+bool vksf_wayland_reconfig(struct ra_ctx *ctx);
 int vksf_wayland_control(struct ra_ctx *ctx, int *events, int request, void *arg);
 void vksf_wayland_wakeup(struct ra_ctx *ctx);
 void vksf_wayland_wait_events(struct ra_ctx *ctx, int64_t until_time_ns);

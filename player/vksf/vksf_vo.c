@@ -75,7 +75,18 @@ static bool vksf_vo_init(struct ra_ctx *ctx)
 
 static bool vksf_vo_reconfig(struct ra_ctx *ctx)
 {
-    return true;
+    struct vksf_context *vksf_ctx = get_vksf_ctx(ctx);
+    if (!vksf_ctx)
+        return true;
+
+    switch (vksf_ctx->params.platform) {
+#if HAVE_WAYLAND
+    case MPV_VKSF_PLATFORM_WAYLAND:
+        return vksf_wayland_reconfig(ctx);
+#endif
+    default:
+        return true;
+    }
 }
 
 static int vksf_vo_control(struct ra_ctx *ctx, int *events, int request, void *arg)

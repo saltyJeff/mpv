@@ -90,26 +90,7 @@ static void vksf_wayland_swap_buffers(struct ra_ctx *ctx)
         return;
 
     mp_mutex_lock(&vksf_ctx->render_lock);
-
-    int w = 0, h = 0;
-    bool pending = false;
-    mp_mutex_lock(&vksf_ctx->ready_lock);
-    if (vksf_ctx->resize_pending) {
-        w = vksf_ctx->width;
-        h = vksf_ctx->height;
-        pending = true;
-        vksf_ctx->resize_pending = false;
-    }
-    mp_mutex_unlock(&vksf_ctx->ready_lock);
-
-    if (pending && w > 0 && h > 0 && ctx->vo && ctx->vo->wl) {
-        ctx->vo->wl->geometry.x0 = 0;
-        ctx->vo->wl->geometry.y0 = 0;
-        ctx->vo->wl->geometry.x1 = w;
-        ctx->vo->wl->geometry.y1 = h;
-        resize(ctx);
-    }
-
+    /* Frame presentation */
     mp_mutex_unlock(&vksf_ctx->render_lock);
 }
 
@@ -237,12 +218,41 @@ bool vksf_wayland_init(struct ra_ctx *ctx)
 
     ra_add_native_resource(ctx->ra, "wl", wl->display);
 
+    if (!resize(ctx))
+        goto error;
+
     MP_VERBOSE(ctx, "vksf_wayland: Initialized surface size %dx%d\n", w, h);
     return true;
 
 error:
     vksf_wayland_uninit(ctx);
     return false;
+}
+
+bool vksf_wayland_reconfig(struct ra_ctx *ctx)
+{
+    struct vo_wayland_state *wl = ctx->vo->wl;
+    if (!wl)
+        return false;
+
+    struct vksf_context *vksf_ctx = get_vksf_ctx(ctx);
+    if (vksf_ctx) {
+        int w = 0, h = 0;
+        mp_mutex_lock(&vksf_ctx->ready_lock);
+        w = vksf_ctx->width;
+        h = vksf_ctx->height;
+        vksf_ctx->resize_pending = false;
+        mp_mutex_unlock(&vksf_ctx->ready_lock);
+
+        if (w > 0 && h > 0) {
+            wl->geometry.x0 = 0;
+            wl->geometry.y0 = 0;
+            wl->geometry.x1 = w;
+            wl->geometry.y1 = h;
+        }
+    }
+
+    return resize(ctx);
 }
 
 int vksf_wayland_control(struct ra_ctx *ctx, int *events, int request, void *arg)
