@@ -54,4 +54,11 @@ void kill_video_async(struct mp_client_api *client_api);
 bool mp_streamcb_lookup(struct mpv_global *g, const char *protocol,
                         void **out_user_data, mpv_stream_cb_open_ro_fn *out_fn);
 
+// vksf client embedding
+struct vksf_context;
+void mp_client_api_set_vksf_ctx(struct mp_client_api *ca, struct vksf_context *ctx);
+struct vksf_context *mp_client_api_get_vksf_ctx(struct mp_client_api *ca);
+struct mp_client_api *mp_client_get_client_api(struct mpv_handle *ctx);
+
 #endif
+

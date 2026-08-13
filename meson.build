@@ -180,6 +180,8 @@ sources = files(
     'player/scripting.c',
     'player/sub.c',
     'player/video.c',
+    'player/vksf/vksf.c',
+    'player/vksf/vksf_vo.c',
 
     ## clipboard
     'player/clipboard/clipboard.c',
@@ -1343,15 +1345,18 @@ if features['vulkan']
 endif
 
 if features['vulkan'] and features['android']
-    sources += files('video/out/vulkan/context_android.c')
+    sources += files('video/out/vulkan/context_android.c',
+                     'player/vksf/vksf_android.c')
 endif
 
 if features['vulkan'] and features['wayland']
-    sources += files('video/out/vulkan/context_wayland.c')
+    sources += files('video/out/vulkan/context_wayland.c',
+                     'player/vksf/vksf_wayland.c')
 endif
 
 if features['vulkan'] and features['win32-desktop']
-    sources += files('video/out/vulkan/context_win.c')
+    sources += files('video/out/vulkan/context_win.c',
+                     'player/vksf/vksf_windows.c')
 endif
 
 if features['vulkan'] and features['x11']
@@ -1833,7 +1838,7 @@ if get_option('libmpv')
     pkg.generate(libmpv, version: client_api_version,
                  description: 'mpv media player client library')
 
-    headers = ['include/mpv/client.h', 'include/mpv/render.h',
+    headers = ['include/mpv/client.h', 'include/mpv/vksf.h', 'include/mpv/render.h',
                'include/mpv/render_gl.h', 'include/mpv/stream_cb.h']
     install_headers(headers, subdir: 'mpv')
 

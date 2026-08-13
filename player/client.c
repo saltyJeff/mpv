@@ -81,6 +81,9 @@ struct mp_client_api {
     int num_custom_protocols;
 
     struct mpv_render_context *render_context;
+
+    // vksf client context
+    struct vksf_context *vksf_ctx;
 };
 
 struct observe_property {
@@ -2247,3 +2250,20 @@ bool mp_streamcb_lookup(struct mpv_global *g, const char *protocol,
     mp_mutex_unlock(&clients->lock);
     return found;
 }
+
+void mp_client_api_set_vksf_ctx(struct mp_client_api *ca, struct vksf_context *ctx)
+{
+    if (ca)
+        ca->vksf_ctx = ctx;
+}
+
+struct vksf_context *mp_client_api_get_vksf_ctx(struct mp_client_api *ca)
+{
+    return ca ? ca->vksf_ctx : NULL;
+}
+
+struct mp_client_api *mp_client_get_client_api(struct mpv_handle *ctx)
+{
+    return ctx ? ctx->clients : NULL;
+}
+

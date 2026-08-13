@@ -44,6 +44,7 @@ extern const struct ra_ctx_fns ra_ctx_dxgl;
 extern const struct ra_ctx_fns ra_ctx_android;
 
 /* Vulkan */
+extern const struct ra_ctx_fns ra_ctx_vksf;
 extern const struct ra_ctx_fns ra_ctx_vulkan_wayland;
 extern const struct ra_ctx_fns ra_ctx_vulkan_win;
 extern const struct ra_ctx_fns ra_ctx_vulkan_xlib;
@@ -84,6 +85,7 @@ static const struct ra_ctx_fns *const contexts[] = {
 
 // Vulkan contexts:
 #if HAVE_VULKAN
+    &ra_ctx_vksf,
 #if HAVE_WIN32_DESKTOP
     &ra_ctx_vulkan_win,
 #endif
