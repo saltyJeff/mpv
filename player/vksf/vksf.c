@@ -110,7 +110,11 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
             const char *val = options[n][1];
             if (strcmp(key, "vo") == 0 || strcmp(key, "gpu-context") == 0)
                 continue;
-            mpv_set_option_string(vksf->mpv, key, val);
+            int opt_err = mpv_set_option_string(vksf->mpv, key, val);
+            if (opt_err < 0) {
+                fprintf(stderr, "[vksf] mpv_set_option_string('%s', '%s') failed: %s (%d)\n",
+                        key, val, mpv_error_string(opt_err), opt_err);
+            }
         }
     }
 
@@ -120,7 +124,10 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
     if (log_cb)
         mpv_request_log_messages(vksf->mpv, "v");
 
-    if (mpv_initialize(vksf->mpv) < 0) {
+    int init_err = mpv_initialize(vksf->mpv);
+    if (init_err < 0) {
+        fprintf(stderr, "[vksf] mpv_initialize failed: %s (%d)\n",
+                mpv_error_string(init_err), init_err);
         mpv_destroy(vksf->mpv);
         mp_mutex_destroy(&ctx->ready_lock);
         mp_cond_destroy(&ctx->ready_cond);
