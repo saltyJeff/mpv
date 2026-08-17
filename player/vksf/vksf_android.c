@@ -69,7 +69,7 @@ bool vksf_android_init(struct ra_ctx *ctx)
     if (!vksf_ctx)
         return false;
 
-    ANativeWindow *win = (ANativeWindow *)vksf_ctx->params.window.android.native_window;
+    ANativeWindow *win = (ANativeWindow *)vksf_ctx->win.window.android.native_window;
     if (!win) {
         MP_ERR(ctx, "vksf_android: No ANativeWindow provided\n");
         return false;

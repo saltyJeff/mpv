@@ -24,7 +24,7 @@ static void vksf_vo_uninit(struct ra_ctx *ctx)
     if (!vksf_ctx)
         return;
 
-    switch (vksf_ctx->params.platform) {
+    switch (vksf_ctx->win.platform) {
 #if HAVE_WAYLAND
     case MPV_VKSF_PLATFORM_WAYLAND:
         vksf_wayland_uninit(ctx);
@@ -53,7 +53,7 @@ static bool vksf_vo_init(struct ra_ctx *ctx)
         return false;
     }
 
-    switch (vksf_ctx->params.platform) {
+    switch (vksf_ctx->win.platform) {
 #if HAVE_WAYLAND
     case MPV_VKSF_PLATFORM_WAYLAND:
         return vksf_wayland_init(ctx);
@@ -68,7 +68,7 @@ static bool vksf_vo_init(struct ra_ctx *ctx)
 #endif
     default:
         MP_ERR(ctx, "vksf: Unsupported or unconfigured platform (%d)\n",
-               vksf_ctx->params.platform);
+               vksf_ctx->win.platform);
         return false;
     }
 }
@@ -79,7 +79,7 @@ static bool vksf_vo_reconfig(struct ra_ctx *ctx)
     if (!vksf_ctx)
         return true;
 
-    switch (vksf_ctx->params.platform) {
+    switch (vksf_ctx->win.platform) {
 #if HAVE_WAYLAND
     case MPV_VKSF_PLATFORM_WAYLAND:
         return vksf_wayland_reconfig(ctx);
@@ -95,7 +95,7 @@ static int vksf_vo_control(struct ra_ctx *ctx, int *events, int request, void *a
     if (!vksf_ctx)
         return VO_NOTIMPL;
 
-    switch (vksf_ctx->params.platform) {
+    switch (vksf_ctx->win.platform) {
 #if HAVE_WAYLAND
     case MPV_VKSF_PLATFORM_WAYLAND:
         return vksf_wayland_control(ctx, events, request, arg);
@@ -119,7 +119,7 @@ static void vksf_vo_wakeup(struct ra_ctx *ctx)
     if (!vksf_ctx)
         return;
 
-    switch (vksf_ctx->params.platform) {
+    switch (vksf_ctx->win.platform) {
 #if HAVE_WAYLAND
     case MPV_VKSF_PLATFORM_WAYLAND:
         vksf_wayland_wakeup(ctx);
@@ -146,7 +146,7 @@ static void vksf_vo_wait_events(struct ra_ctx *ctx, int64_t until_time_ns)
     if (!vksf_ctx)
         return;
 
-    switch (vksf_ctx->params.platform) {
+    switch (vksf_ctx->win.platform) {
 #if HAVE_WAYLAND
     case MPV_VKSF_PLATFORM_WAYLAND:
         vksf_wayland_wait_events(ctx, until_time_ns);

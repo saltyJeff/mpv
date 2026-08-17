@@ -124,9 +124,9 @@ bool vksf_wayland_init(struct ra_ctx *ctx)
         return false;
     }
 
-    struct wl_display *display = vksf_ctx->params.window.wayland.display;
+    struct wl_display *display = vksf_ctx->win.window.wayland.display;
     if (!display) {
-        MP_ERR(ctx, "vksf_wayland: No wl_display provided in params\n");
+        MP_ERR(ctx, "vksf_wayland: No wl_display provided in win\n");
         return false;
     }
 
@@ -157,8 +157,8 @@ bool vksf_wayland_init(struct ra_ctx *ctx)
     }
     wl->compositor = reg_ctx.compositor;
 
-    if (vksf_ctx->params.window.wayland.surface) {
-        wl->surface = vksf_ctx->params.window.wayland.surface;
+    if (vksf_ctx->win.window.wayland.surface) {
+        wl->surface = vksf_ctx->win.window.wayland.surface;
         p->created_surface = false;
     } else {
         wl->surface = wl_compositor_create_surface(wl->compositor);

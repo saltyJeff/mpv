@@ -69,8 +69,8 @@ bool vksf_windows_init(struct ra_ctx *ctx)
     if (!vksf_ctx)
         return false;
 
-    HWND hwnd = (HWND)vksf_ctx->params.window.win32.hwnd;
-    HINSTANCE hinst = (HINSTANCE)vksf_ctx->params.window.win32.hinstance;
+    HWND hwnd = (HWND)vksf_ctx->win.window.win32.hwnd;
+    HINSTANCE hinst = (HINSTANCE)vksf_ctx->win.window.win32.hinstance;
     if (!hinst)
         hinst = GetModuleHandle(NULL);
 

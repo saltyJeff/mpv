@@ -53,9 +53,13 @@ static void *event_thread_proc(void *arg)
     return NULL;
 }
 
-struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_params *params)
+struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
+                                const char *const (*options)[2],
+                                mpv_vksf_event_cb event_cb,
+                                mpv_vksf_log_cb log_cb,
+                                void *userdata)
 {
-    if (!params)
+    if (!win)
         return NULL;
 
     struct mpv_vksf *vksf = calloc(1, sizeof(*vksf));
@@ -69,7 +73,7 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_params *params)
     }
 
     vksf->vksf_ctx = ctx;
-    ctx->params = *params;
+    ctx->win = *win;
     mp_mutex_init(&ctx->ready_lock);
     mp_cond_init(&ctx->ready_cond);
     mp_mutex_init(&ctx->render_lock);
@@ -84,9 +88,9 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_params *params)
         return NULL;
     }
 
-    vksf->userdata = params->userdata;
-    vksf->event_cb = params->event_cb;
-    vksf->log_cb = params->log_cb;
+    vksf->userdata = userdata;
+    vksf->event_cb = event_cb;
+    vksf->log_cb = log_cb;
 
     // Apply forced internal options
     mpv_set_option_string(vksf->mpv, "vo", "gpu-next");
@@ -97,10 +101,10 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_params *params)
     mpv_set_option_string(vksf->mpv, "input-cursor", "no");
     mpv_set_option_string(vksf->mpv, "osc", "no");
 
-    if (params->options) {
-        for (int n = 0; params->options[n][0]; n++) {
-            const char *key = params->options[n][0];
-            const char *val = params->options[n][1];
+    if (options) {
+        for (int n = 0; options[n][0]; n++) {
+            const char *key = options[n][0];
+            const char *val = options[n][1];
             if (strcmp(key, "vo") == 0 || strcmp(key, "gpu-context") == 0)
                 continue;
             mpv_set_option_string(vksf->mpv, key, val);
@@ -110,7 +114,7 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_params *params)
     struct mp_client_api *ca = mp_client_get_client_api(vksf->mpv);
     mp_client_api_set_vksf_ctx(ca, ctx);
 
-    if (params->log_cb)
+    if (log_cb)
         mpv_request_log_messages(vksf->mpv, "v");
 
     if (mpv_initialize(vksf->mpv) < 0) {

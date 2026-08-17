@@ -11,7 +11,7 @@
 #include "video/out/vulkan/common.h"
 
 struct vksf_context {
-    struct mpv_vksf_params params;
+    struct mpv_vksf_window win;
 
     mp_mutex ready_lock;
     mp_cond ready_cond;
