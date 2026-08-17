@@ -2,6 +2,7 @@
  * Vulkan Surface (vksf) client implementation
  */
 
+#include <locale.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -42,7 +43,7 @@ static void *event_thread_proc(void *arg)
         }
 
         if (vksf->event_cb) {
-            int stop = vksf->event_cb(vksf, event, vksf->userdata);
+            int stop = vksf-Explore>event_cb(vksf, event, vksf->userdata);
             if (stop)
                 break;
         }
@@ -61,6 +62,8 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
 {
     if (!win)
         return NULL;
+
+    setlocale(LC_NUMERIC, "C");
 
     struct mpv_vksf *vksf = calloc(1, sizeof(*vksf));
     if (!vksf)
