@@ -43,7 +43,7 @@ static void *event_thread_proc(void *arg)
         }
 
         if (vksf->event_cb) {
-            int stop = vksf-Explore>event_cb(vksf, event, vksf->userdata);
+            int stop = vksf->event_cb(vksf, event, vksf->userdata);
             if (stop)
                 break;
         }
