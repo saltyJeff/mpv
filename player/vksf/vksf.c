@@ -14,6 +14,7 @@
 #include "common/global.h"
 #include "common/msg.h"
 #include "player/client.h"
+#include "video/out/vo.h"
 
 struct mpv_vksf {
     struct mpv_handle *mpv;
@@ -198,7 +199,11 @@ int mpv_vksf_update_size(struct mpv_vksf *vksf, int width, int height)
     ctx->width = width;
     ctx->height = height;
     ctx->resize_pending = true;
+    struct vo *vo = ctx->vo;
     mp_mutex_unlock(&ctx->ready_lock);
+
+    if (vo)
+        vo_event(vo, VO_EVENT_RESIZE);
 
     if (vksf->mpv)
         mpv_wakeup(vksf->mpv);

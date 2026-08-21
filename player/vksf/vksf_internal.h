@@ -10,6 +10,8 @@
 #include "video/out/gpu/context.h"
 #include "video/out/vulkan/common.h"
 
+struct vo;
+
 struct vksf_context {
     struct mpv_vksf_window win;
 
@@ -24,6 +26,8 @@ struct vksf_context {
     int width;
     int height;
     bool resize_pending;
+
+    struct vo *vo;
 
     void *platform_priv;
 };

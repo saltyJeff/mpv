@@ -96,6 +96,10 @@ static void vksf_wayland_swap_buffers(struct ra_ctx *ctx)
 
 void vksf_wayland_uninit(struct ra_ctx *ctx)
 {
+    struct vksf_context *vksf_ctx = get_vksf_ctx(ctx);
+    if (vksf_ctx)
+        vksf_ctx->vo = NULL;
+
     struct priv *p = ctx->priv;
     if (!p)
         return;
@@ -184,6 +188,7 @@ bool vksf_wayland_init(struct ra_ctx *ctx)
     wl->pending_vo_events |= VO_EVENT_RESIZE;
 
     vksf_ctx->native_surface = wl->surface;
+    vksf_ctx->vo = ctx->vo;
 
     // Signal readiness to mpv_vksf_create
     mp_mutex_lock(&vksf_ctx->ready_lock);
