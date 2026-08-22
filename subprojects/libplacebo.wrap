@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://code.videolan.org/videolan/libplacebo.git
+revision = v7.360.1
+depth = 1
+
+[provide]
+dependency_names = libplacebo

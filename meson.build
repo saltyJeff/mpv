@@ -28,9 +28,12 @@ libswresample = dependency('libswresample', version: '>= 4.12.100')
 libswscale = dependency('libswscale', version: '>= 7.5.100')
 
 libplacebo = dependency('libplacebo', version: '>=7.360.1',
-                default_options: ['default_library=static', 'demos=false'])
+                default_options: ['default_library=static', 'demos=false',
+                                  'tests=false', 'opengl=disabled',
+                                  'd3d11=disabled'])
 
-libass = dependency('libass', version: '>= 0.12.2')
+libass = dependency('libass', version: '>= 0.12.2',
+                    default_options: ['default_library=static'])
 
 # the dependency order of libass -> ffmpeg is necessary due to
 # static linking symbol resolution between fontconfig and MinGW
