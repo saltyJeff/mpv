@@ -14,6 +14,7 @@
 
 #include "common/global.h"
 #include "common/msg.h"
+#include "osdep/io.h"
 #include "player/client.h"
 #include "player/vksf/vksf_internal.h"
 #include "video/out/gpu/context.h"
@@ -74,7 +75,8 @@ static bool resize(struct ra_ctx *ctx)
 
 static bool vksf_wayland_check_visible(struct ra_ctx *ctx)
 {
-    return true;
+    struct vo_wayland_state *wl = ctx->vo->wl;
+    return wl && wl->display_fd >= 0;
 }
 
 static struct pl_color_space vksf_wayland_preferred_csp(struct ra_ctx *ctx)
@@ -115,6 +117,12 @@ void vksf_wayland_uninit(struct ra_ctx *ctx)
         if (wl->compositor)
             wl_compositor_destroy(wl->compositor);
 
+        for (int n = 0; n < 2; n++) {
+            if (wl->wakeup_pipe[n] >= 0)
+                close(wl->wakeup_pipe[n]);
+            wl->wakeup_pipe[n] = -1;
+        }
+
         talloc_free(wl);
         ctx->vo->wl = NULL;
     }
@@ -142,7 +150,20 @@ bool vksf_wayland_init(struct ra_ctx *ctx)
     ctx->vo->wl = wl;
     wl->vo = ctx->vo;
     wl->display = display;
+    wl->display_fd = wl_display_get_fd(display);
+    wl->wakeup_pipe[0] = -1;
+    wl->wakeup_pipe[1] = -1;
     wl->log = ctx->vo->log;
+
+    if (wl->display_fd < 0) {
+        MP_ERR(ctx, "vksf_wayland: Failed to get Wayland display FD\n");
+        goto error;
+    }
+
+    if (mp_make_wakeup_pipe(wl->wakeup_pipe) < 0) {
+        MP_ERR(ctx, "vksf_wayland: Failed to create wakeup pipe\n");
+        goto error;
+    }
 
     struct wl_registry *registry = wl_display_get_registry(display);
     if (!registry) {
@@ -303,14 +324,15 @@ int vksf_wayland_control(struct ra_ctx *ctx, int *events, int request, void *arg
 
 void vksf_wayland_wakeup(struct ra_ctx *ctx)
 {
-    if (ctx->vo && ctx->vo->wl && ctx->vo->wl->display)
-        wl_display_flush(ctx->vo->wl->display);
+    (void)ctx;
+    // vo_event() already wakes the VO's condition variable before invoking
+    // this callback. Do not dispatch or flush GTK's Wayland connection here.
 }
 
 void vksf_wayland_wait_events(struct ra_ctx *ctx, int64_t until_time_ns)
 {
-    if (ctx->vo && ctx->vo->wl && ctx->vo->wl->display)
-        wl_display_flush(ctx->vo->wl->display);
+    if (ctx->vo)
+        vo_wait_default(ctx->vo, until_time_ns);
 }
 
 #endif
