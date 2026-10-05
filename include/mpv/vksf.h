@@ -3,6 +3,7 @@
 
 #include <mpv/client.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -54,7 +55,8 @@ struct mpv_vksf_window {
     struct {
       struct wl_display *display; /* Host wl_display connection (required) */
       struct wl_surface
-          *surface; /* NULL to let mpv create an unmapped wl_surface */
+          *surface; /* Host-owned surface, preferred */
+      struct wl_compositor *compositor; /* Needed only when surface is NULL */
     } wayland;
 
     struct {
@@ -77,6 +79,30 @@ struct mpv_vksf_window {
   } window;
 };
 
+/* Host-thread operations for platforms whose UI owns the native display. */
+typedef void (*mpv_vksf_host_action)(void *action_userdata);
+typedef void (*mpv_vksf_host_executor)(mpv_vksf_host_action action,
+                                      void *action_userdata,
+                                      void *host_userdata);
+
+struct mpv_vksf_host_services {
+  size_t struct_size;
+  mpv_vksf_host_executor run_on_host_thread;
+  void *userdata;
+};
+
+struct mpv_vksf_window_state {
+  size_t struct_size;
+  int logical_width;
+  int logical_height;
+  int framebuffer_width;
+  int framebuffer_height;
+  double scale;
+  bool visible;
+  bool focused;
+  bool fullscreen;
+};
+
 /* ── Lifecycle ───────────────────────────────────────────────────────────── */
 
 /**
@@ -93,6 +119,12 @@ MPV_EXPORT struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
                                             mpv_vksf_event_cb event_cb,
                                             mpv_vksf_log_cb log_cb,
                                             void *userdata);
+
+MPV_EXPORT struct mpv_vksf *mpv_vksf_create_ex(
+    const struct mpv_vksf_window *win,
+    const char *const (*options)[2], mpv_vksf_event_cb event_cb,
+    mpv_vksf_log_cb log_cb, void *userdata,
+    const struct mpv_vksf_host_services *host);
 
 /**
  * Destroy the vksf client instance.
@@ -118,6 +150,13 @@ MPV_EXPORT void *mpv_vksf_get_native_surface(struct mpv_vksf *vksf);
  */
 MPV_EXPORT int mpv_vksf_update_size(struct mpv_vksf *vksf, int width,
                                     int height);
+
+/* Update host-owned geometry and state. Framebuffer dimensions are pixels. */
+MPV_EXPORT int mpv_vksf_update_window_state(
+    struct mpv_vksf *vksf, const struct mpv_vksf_window_state *state);
+
+/* Refresh display color, profile, scale, and timing information. */
+MPV_EXPORT int mpv_vksf_notify_display_change(struct mpv_vksf *vksf);
 
 /**
  * Acquire exclusive lock on the VO render/swap path.

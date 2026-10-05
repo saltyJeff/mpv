@@ -3,7 +3,6 @@
  */
 
 #include <locale.h>
-#include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,12 +21,20 @@ struct mpv_vksf {
     void *userdata;
     mpv_vksf_event_cb event_cb;
     mpv_vksf_log_cb log_cb;
-    pthread_t event_thread;
+    mp_thread event_thread;
     atomic_bool stop_thread;
     bool has_thread;
 };
 
-static void *event_thread_proc(void *arg)
+struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
+                                const char *const (*options)[2],
+                                mpv_vksf_event_cb event_cb,
+                                mpv_vksf_log_cb log_cb, void *userdata)
+{
+    return mpv_vksf_create_ex(win, options, event_cb, log_cb, userdata, NULL);
+}
+
+static MP_THREAD_VOID event_thread_proc(void *arg)
 {
     struct mpv_vksf *vksf = arg;
     while (!atomic_load(&vksf->stop_thread)) {
@@ -52,14 +59,15 @@ static void *event_thread_proc(void *arg)
         if (event->event_id == MPV_EVENT_SHUTDOWN)
             break;
     }
-    return NULL;
+    MP_THREAD_RETURN();
 }
 
-struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
+struct mpv_vksf *mpv_vksf_create_ex(const struct mpv_vksf_window *win,
                                 const char *const (*options)[2],
                                 mpv_vksf_event_cb event_cb,
                                 mpv_vksf_log_cb log_cb,
-                                void *userdata)
+                                void *userdata,
+                                const struct mpv_vksf_host_services *host)
 {
     if (!win)
         return NULL;
@@ -78,6 +86,14 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
 
     vksf->vksf_ctx = ctx;
     ctx->win = *win;
+    if (host) {
+        if (host->struct_size < sizeof(*host)) {
+            free(ctx);
+            free(vksf);
+            return NULL;
+        }
+        ctx->host = *host;
+    }
     mp_mutex_init(&ctx->ready_lock);
     mp_cond_init(&ctx->ready_cond);
     mp_mutex_init(&ctx->render_lock);
@@ -140,13 +156,23 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
 
     // Wait until VO thread creates native surface and signals readiness
     mp_mutex_lock(&ctx->ready_lock);
-    while (!ctx->surface_ready)
+    while (!ctx->surface_ready && !ctx->surface_failed)
         mp_cond_wait(&ctx->ready_cond, &ctx->ready_lock);
+    bool surface_failed = ctx->surface_failed;
     mp_mutex_unlock(&ctx->ready_lock);
+    if (surface_failed) {
+        mpv_terminate_destroy(vksf->mpv);
+        mp_mutex_destroy(&ctx->ready_lock);
+        mp_cond_destroy(&ctx->ready_cond);
+        mp_mutex_destroy(&ctx->render_lock);
+        free(ctx);
+        free(vksf);
+        return NULL;
+    }
 
     if (vksf->event_cb || vksf->log_cb) {
         atomic_init(&vksf->stop_thread, false);
-        if (pthread_create(&vksf->event_thread, NULL, event_thread_proc, vksf) == 0) {
+        if (mp_thread_create(&vksf->event_thread, event_thread_proc, vksf) == 0) {
             vksf->has_thread = true;
         }
     }
@@ -162,7 +188,7 @@ void mpv_vksf_destroy(struct mpv_vksf *vksf)
     if (vksf->has_thread) {
         atomic_store(&vksf->stop_thread, true);
         mpv_wakeup(vksf->mpv);
-        pthread_join(vksf->event_thread, NULL);
+        mp_thread_join(vksf->event_thread);
     }
 
     const char *cmd[] = {"quit", NULL};
@@ -196,18 +222,77 @@ int mpv_vksf_update_size(struct mpv_vksf *vksf, int width, int height)
 
     struct vksf_context *ctx = vksf->vksf_ctx;
     mp_mutex_lock(&ctx->ready_lock);
+    bool geometry_changed = ctx->width != width || ctx->height != height;
     ctx->width = width;
     ctx->height = height;
     ctx->resize_pending = true;
     struct vo *vo = ctx->vo;
     mp_mutex_unlock(&ctx->ready_lock);
 
-    if (vo)
+    if (vo && geometry_changed)
         vo_event(vo, VO_EVENT_RESIZE);
 
     if (vksf->mpv)
         mpv_wakeup(vksf->mpv);
 
+    return 0;
+}
+
+int mpv_vksf_update_window_state(
+    struct mpv_vksf *vksf, const struct mpv_vksf_window_state *state)
+{
+    if (!vksf || !vksf->vksf_ctx || !state ||
+        state->struct_size < sizeof(*state) ||
+        state->logical_width < 0 || state->logical_height < 0 ||
+        state->framebuffer_width < 0 || state->framebuffer_height < 0 ||
+        state->scale <= 0)
+        return MPV_ERROR_INVALID_PARAMETER;
+
+    struct vksf_context *ctx = vksf->vksf_ctx;
+    int events = 0;
+    mp_mutex_lock(&ctx->ready_lock);
+    bool geometry_changed = ctx->width != state->framebuffer_width ||
+                            ctx->height != state->framebuffer_height;
+    if (geometry_changed && state->framebuffer_width > 0 &&
+        state->framebuffer_height > 0)
+        events |= VO_EVENT_RESIZE;
+    if (ctx->scale != state->scale)
+        events |= VO_EVENT_DPI;
+    if (ctx->focused != state->focused)
+        events |= VO_EVENT_FOCUS;
+    if (ctx->visible != state->visible || ctx->fullscreen != state->fullscreen)
+        events |= VO_EVENT_WIN_STATE;
+    ctx->logical_width = state->logical_width;
+    ctx->logical_height = state->logical_height;
+    ctx->width = state->framebuffer_width;
+    ctx->height = state->framebuffer_height;
+    ctx->scale = state->scale;
+    ctx->visible = state->visible;
+    ctx->focused = state->focused;
+    ctx->fullscreen = state->fullscreen;
+    ctx->resize_pending = (events & VO_EVENT_RESIZE) != 0;
+    struct vo *vo = ctx->vo;
+    mp_mutex_unlock(&ctx->ready_lock);
+
+    if (vo && events)
+        vo_event(vo, events | VO_EVENT_EXPOSE);
+    mpv_wakeup(vksf->mpv);
+    return 0;
+}
+
+int mpv_vksf_notify_display_change(struct mpv_vksf *vksf)
+{
+    if (!vksf || !vksf->vksf_ctx)
+        return MPV_ERROR_INVALID_PARAMETER;
+    struct vksf_context *ctx = vksf->vksf_ctx;
+    mp_mutex_lock(&ctx->ready_lock);
+    ctx->display_change_pending = true;
+    struct vo *vo = ctx->vo;
+    mp_mutex_unlock(&ctx->ready_lock);
+    if (vo)
+        vo_event(vo, VO_EVENT_RESIZE | VO_EVENT_DPI |
+                      VO_EVENT_ICC_PROFILE_CHANGED | VO_EVENT_EXPOSE);
+    mpv_wakeup(vksf->mpv);
     return 0;
 }
 

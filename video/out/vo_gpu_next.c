@@ -1671,14 +1671,21 @@ static void flip_page(struct vo *vo)
 {
     struct priv *p = vo->priv;
     struct ra_swapchain *sw = p->ra_ctx->swapchain;
+    bool surface_locked = false;
 
     if (p->frame_pending) {
+        if (p->ra_ctx->fns->lock_surface) {
+            p->ra_ctx->fns->lock_surface(p->ra_ctx);
+            surface_locked = true;
+        }
         if (!pl_swapchain_submit_frame(p->sw))
             MP_ERR(vo, "Failed presenting frame!\n");
         p->frame_pending = false;
     }
 
     sw->fns->swap_buffers(sw);
+    if (surface_locked && p->ra_ctx->fns->unlock_surface)
+        p->ra_ctx->fns->unlock_surface(p->ra_ctx);
 }
 
 static void get_vsync(struct vo *vo, struct vo_vsync_info *info)

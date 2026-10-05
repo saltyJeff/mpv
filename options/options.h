@@ -6,6 +6,12 @@
 #include "m_option.h"
 #include "common/common.h"
 
+enum mp_video_fit {
+    DEFAULT_FIT,
+    WIDTH_FIT,
+    HEIGHT_FIT,
+};
+
 typedef struct mp_vo_opts {
     struct m_obj_settings *video_driver_list;
 
@@ -46,6 +52,7 @@ typedef struct mp_vo_opts {
     bool wl_present;
 
     float panscan;
+    enum mp_video_fit fit;
     float zoom;
     float pan_x, pan_y;
     float align_x, align_y;

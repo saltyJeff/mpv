@@ -171,9 +171,20 @@ void mp_get_src_dst_rects(struct mp_log *log, struct mp_vo_opts *opts,
 
     if (opts->keepaspect) {
         int scaled_width, scaled_height;
-        aspect_calc_panscan(opts, src_w, src_h, src_dw, src_dh, opts->unscaled,
-                            vid_window_w, vid_window_h, monitor_par,
-                            &scaled_width, &scaled_height);
+        int unscaled = opts->unscaled;
+        if (!unscaled && opts->fit != DEFAULT_FIT) {
+            if (opts->fit == WIDTH_FIT) {
+                scaled_width = vid_window_w;
+                scaled_height = (float)scaled_width / src_dw * src_dh / monitor_par;
+            } else {
+                scaled_height = vid_window_h;
+                scaled_width = (float)scaled_height / src_dh * src_dw * monitor_par;
+            }
+        } else {
+            aspect_calc_panscan(opts, src_w, src_h, src_dw, src_dh, unscaled,
+                                vid_window_w, vid_window_h, monitor_par,
+                                &scaled_width, &scaled_height);
+        }
         src_dst_split_scaling(src_w, vid_window_w, scaled_width,
                               opts->zoom, opts->align_x, opts->pan_x, opts->scale_x,
                               opts->recenter,

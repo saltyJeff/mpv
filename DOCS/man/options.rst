@@ -1632,6 +1632,15 @@ Video
 
     This option has no effect if ``--video-unscaled`` option is used.
 
+``--fit=<default|width|height>``
+    Select how the video is fitted inside the available video area.
+
+    ``default`` uses the normal aspect-preserving mpv sizing behavior and
+    honors ``--panscan``. ``width`` fills the available width and preserves
+    the video aspect ratio, cropping vertically when needed. ``height`` fills
+    the available height and preserves the aspect ratio, cropping horizontally
+    when needed. ``--video-unscaled`` takes precedence over this option.
+
     The difference between ``--panscan`` and ``--video-zoom`` is that
     ``--panscan`` can only zoom in until either the video width or height fills
     the window, while ``--video-zoom`` can zoom in or out arbitrary amounts, and

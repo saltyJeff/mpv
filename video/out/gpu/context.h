@@ -53,6 +53,10 @@ struct ra_ctx_fns {
     void (*wait_events)(struct ra_ctx *ctx, int64_t until_time_ns);
     void (*update_render_opts)(struct ra_ctx *ctx);
 
+    // Optional lock for coordinating a submitted frame with host surface state.
+    void (*lock_surface)(struct ra_ctx *ctx);
+    void (*unlock_surface)(struct ra_ctx *ctx);
+
     // Initialize/destroy the 'struct ra' and possibly the underlying VO backend.
     // Not normally called by the user of the ra_ctx.
     bool (*init)(struct ra_ctx *ctx);

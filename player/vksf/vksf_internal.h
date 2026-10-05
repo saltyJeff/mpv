@@ -14,10 +14,12 @@ struct vo;
 
 struct vksf_context {
     struct mpv_vksf_window win;
+    struct mpv_vksf_host_services host;
 
     mp_mutex ready_lock;
     mp_cond ready_cond;
     bool surface_ready;
+    bool surface_failed;
 
     mp_mutex render_lock;
 
@@ -25,7 +27,14 @@ struct vksf_context {
 
     int width;
     int height;
+    int logical_width;
+    int logical_height;
+    double scale;
+    bool visible;
+    bool focused;
+    bool fullscreen;
     bool resize_pending;
+    bool display_change_pending;
 
     struct vo *vo;
 
@@ -45,6 +54,7 @@ void vksf_wayland_wait_events(struct ra_ctx *ctx, int64_t until_time_ns);
 #if HAVE_WIN32_DESKTOP
 bool vksf_windows_init(struct ra_ctx *ctx);
 void vksf_windows_uninit(struct ra_ctx *ctx);
+bool vksf_windows_reconfig(struct ra_ctx *ctx);
 int vksf_windows_control(struct ra_ctx *ctx, int *events, int request, void *arg);
 void vksf_windows_wakeup(struct ra_ctx *ctx);
 void vksf_windows_wait_events(struct ra_ctx *ctx, int64_t until_time_ns);

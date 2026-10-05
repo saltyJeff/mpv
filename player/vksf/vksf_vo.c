@@ -84,6 +84,10 @@ static bool vksf_vo_reconfig(struct ra_ctx *ctx)
     case MPV_VKSF_PLATFORM_WAYLAND:
         return vksf_wayland_reconfig(ctx);
 #endif
+#if HAVE_WIN32_DESKTOP
+    case MPV_VKSF_PLATFORM_WIN32:
+        return vksf_windows_reconfig(ctx);
+#endif
     default:
         return true;
     }
@@ -167,6 +171,20 @@ static void vksf_vo_wait_events(struct ra_ctx *ctx, int64_t until_time_ns)
     }
 }
 
+static void vksf_vo_lock_surface(struct ra_ctx *ctx)
+{
+    struct vksf_context *vksf_ctx = get_vksf_ctx(ctx);
+    if (vksf_ctx)
+        mp_mutex_lock(&vksf_ctx->render_lock);
+}
+
+static void vksf_vo_unlock_surface(struct ra_ctx *ctx)
+{
+    struct vksf_context *vksf_ctx = get_vksf_ctx(ctx);
+    if (vksf_ctx)
+        mp_mutex_unlock(&vksf_ctx->render_lock);
+}
+
 const struct ra_ctx_fns ra_ctx_vksf = {
     .type               = "vulkan",
     .name               = "vksf",
@@ -175,6 +193,8 @@ const struct ra_ctx_fns ra_ctx_vksf = {
     .control            = vksf_vo_control,
     .wakeup             = vksf_vo_wakeup,
     .wait_events        = vksf_vo_wait_events,
+    .lock_surface       = vksf_vo_lock_surface,
+    .unlock_surface     = vksf_vo_unlock_surface,
     .init               = vksf_vo_init,
     .uninit             = vksf_vo_uninit,
 };
