@@ -144,6 +144,7 @@ struct priv {
     bool want_reset;
     bool flush_cache;
     bool frame_pending;
+    bool surface_locked;
     bool paused;
 
     pl_options pars;
@@ -1189,13 +1190,21 @@ static bool set_colorspace_hint(struct priv *p, struct pl_color_space *hint)
         },
     };
 
-    if (sw->fns->set_color && sw->fns->set_color(sw, hint ? &params : NULL)) {
+    bool color_set = sw->fns->set_color &&
+                     sw->fns->set_color(sw, hint ? &params : NULL);
+    if (!color_set) {
+        if (p->ra_ctx->fns->lock_surface)
+            p->ra_ctx->fns->lock_surface(p->ra_ctx);
+        pl_swapchain_colorspace_hint(p->sw, hint);
+        if (p->ra_ctx->fns->unlock_surface)
+            p->ra_ctx->fns->unlock_surface(p->ra_ctx);
+    }
+    if (color_set) {
         if (hint) {
             *hint = params.color;
             return true;
         }
     }
-    pl_swapchain_colorspace_hint(p->sw, hint);
     return false;
 }
 
@@ -1445,8 +1454,16 @@ static bool draw_frame(struct vo *vo, struct vo_frame *frame)
     }
 
     struct pl_swapchain_frame swframe;
+    if (p->ra_ctx->fns->lock_surface) {
+        p->ra_ctx->fns->lock_surface(p->ra_ctx);
+        p->surface_locked = true;
+    }
     bool should_draw = sw->fns->start_frame(sw, NULL); // for wayland logic
     if (!should_draw || !pl_swapchain_start_frame(p->sw, &swframe)) {
+        if (p->surface_locked && p->ra_ctx->fns->unlock_surface) {
+            p->ra_ctx->fns->unlock_surface(p->ra_ctx);
+            p->surface_locked = false;
+        }
         if (frame->current) {
             // Advance the queue state to the current PTS to discard unused frames
             struct pl_queue_params qparams = *pl_queue_params(
@@ -1671,21 +1688,17 @@ static void flip_page(struct vo *vo)
 {
     struct priv *p = vo->priv;
     struct ra_swapchain *sw = p->ra_ctx->swapchain;
-    bool surface_locked = false;
-
     if (p->frame_pending) {
-        if (p->ra_ctx->fns->lock_surface) {
-            p->ra_ctx->fns->lock_surface(p->ra_ctx);
-            surface_locked = true;
-        }
         if (!pl_swapchain_submit_frame(p->sw))
             MP_ERR(vo, "Failed presenting frame!\n");
         p->frame_pending = false;
     }
 
     sw->fns->swap_buffers(sw);
-    if (surface_locked && p->ra_ctx->fns->unlock_surface)
+    if (p->surface_locked && p->ra_ctx->fns->unlock_surface) {
         p->ra_ctx->fns->unlock_surface(p->ra_ctx);
+        p->surface_locked = false;
+    }
 }
 
 static void get_vsync(struct vo *vo, struct vo_vsync_info *info)
@@ -2105,7 +2118,11 @@ static int control(struct vo *vo, uint32_t request, void *data)
     }
 
     case VOCTRL_SCREENSHOT:
+        if (p->ra_ctx->fns->lock_surface)
+            p->ra_ctx->fns->lock_surface(p->ra_ctx);
         video_screenshot(vo, data);
+        if (p->ra_ctx->fns->unlock_surface)
+            p->ra_ctx->fns->unlock_surface(p->ra_ctx);
         return true;
 
     case VOCTRL_EXTERNAL_RESIZE:

@@ -169,6 +169,9 @@ void ra_vk_ctx_uninit(struct ra_ctx *ctx)
     struct priv *p = ctx->swapchain->priv;
     struct mpvk_ctx *vk = p->vk;
 
+    bool surface_locked = ctx->fns->lock_surface != NULL;
+    if (surface_locked)
+        ctx->fns->lock_surface(ctx);
     if (ctx->ra) {
         pl_gpu_finish(vk->gpu);
         pl_swapchain_destroy(&vk->swapchain);
@@ -179,6 +182,8 @@ void ra_vk_ctx_uninit(struct ra_ctx *ctx)
     vk->gpu = NULL;
     pl_vulkan_destroy(&vk->vulkan);
     TA_FREEP(&ctx->swapchain);
+    if (surface_locked && ctx->fns->unlock_surface)
+        ctx->fns->unlock_surface(ctx);
 }
 
 pl_vulkan mppl_create_vulkan(struct vulkan_opts *opts,

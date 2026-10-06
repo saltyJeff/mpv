@@ -8,6 +8,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
+#include <wchar.h>
 #include <windows.h>
 
 #include "common/global.h"
@@ -27,6 +29,13 @@ struct priv {
     struct mpvk_ctx vk;
     struct mp_dxgi_factory_ctx dxgi;
     HWND hwnd;
+    DXGI_OUTPUT_DESC1 last_output;
+    float last_ref_luma;
+    int64_t last_display_check_ns;
+    bool have_output_snapshot;
+    wchar_t last_icc_path[MAX_PATH];
+    FILETIME last_icc_write_time;
+    bool have_icc_snapshot;
 };
 
 static struct vksf_context *get_vksf_ctx(struct ra_ctx *ctx)
@@ -68,6 +77,78 @@ static float vksf_windows_ref_luma(struct ra_ctx *ctx)
     return p ? mp_dxgi_sdr_white_level_from_hwnd(&p->dxgi, p->hwnd) : 0;
 }
 
+static bool output_desc_changed(const DXGI_OUTPUT_DESC1 *a,
+                                const DXGI_OUTPUT_DESC1 *b)
+{
+    return a->Monitor != b->Monitor || a->BitsPerColor != b->BitsPerColor ||
+           a->ColorSpace != b->ColorSpace ||
+           a->MinLuminance != b->MinLuminance ||
+           a->MaxLuminance != b->MaxLuminance ||
+           a->MaxFullFrameLuminance != b->MaxFullFrameLuminance ||
+           memcmp(a->RedPrimary, b->RedPrimary, sizeof(a->RedPrimary)) ||
+           memcmp(a->GreenPrimary, b->GreenPrimary, sizeof(a->GreenPrimary)) ||
+           memcmp(a->BluePrimary, b->BluePrimary, sizeof(a->BluePrimary)) ||
+           memcmp(a->WhitePoint, b->WhitePoint, sizeof(a->WhitePoint));
+}
+
+// DXGI factory invalidation also covers display color setting changes that do
+// not generate a window message (including SDR reference white adjustments).
+static bool refresh_output_snapshot(struct ra_ctx *ctx, bool force)
+{
+    struct priv *p = ctx->priv;
+    int64_t now = mp_time_ns();
+    if (!force && now - p->last_display_check_ns < 1000000000LL)
+        return false;
+    p->last_display_check_ns = now;
+    DXGI_OUTPUT_DESC1 desc;
+    if (!mp_dxgi_output_desc_from_hwnd(&p->dxgi, p->hwnd, &desc)) {
+        bool changed = p->have_output_snapshot;
+        p->have_output_snapshot = false;
+        return changed;
+    }
+
+    float ref_luma = mp_dxgi_sdr_white_level_from_hwnd(&p->dxgi, p->hwnd);
+    bool changed = p->have_output_snapshot &&
+        (output_desc_changed(&p->last_output, &desc) ||
+         p->last_ref_luma != ref_luma);
+    p->last_output = desc;
+    p->last_ref_luma = ref_luma;
+    p->have_output_snapshot = true;
+
+    MONITORINFOEXW monitor = { .cbSize = sizeof(monitor) };
+    wchar_t profile[MAX_PATH] = {0};
+    FILETIME write_time = {0};
+    bool have_profile = false;
+    HDC dc = NULL;
+    if (desc.Monitor && GetMonitorInfoW(desc.Monitor, (MONITORINFO *)&monitor))
+        dc = CreateICW(L"DISPLAY", monitor.szDevice, NULL, NULL);
+    if (dc) {
+        DWORD length = MAX_PATH;
+        WIN32_FILE_ATTRIBUTE_DATA attributes;
+        have_profile = GetICMProfileW(dc, &length, profile) &&
+            GetFileAttributesExW(profile, GetFileExInfoStandard, &attributes);
+        if (have_profile) {
+            write_time = attributes.ftLastWriteTime;
+        }
+        DeleteDC(dc);
+    }
+    bool icc_changed = p->have_icc_snapshot != have_profile;
+    if (have_profile) {
+        icc_changed |= wcscmp(p->last_icc_path, profile) != 0 ||
+            p->last_icc_write_time.dwHighDateTime != write_time.dwHighDateTime ||
+            p->last_icc_write_time.dwLowDateTime != write_time.dwLowDateTime;
+        wcsncpy(p->last_icc_path, profile, MAX_PATH - 1);
+        p->last_icc_path[MAX_PATH - 1] = L'\0';
+        p->last_icc_write_time = write_time;
+    } else {
+        p->last_icc_path[0] = L'\0';
+        memset(&p->last_icc_write_time, 0, sizeof(p->last_icc_write_time));
+    }
+    p->have_icc_snapshot = have_profile;
+    changed |= p->have_output_snapshot && icc_changed;
+    return changed;
+}
+
 static char *monitor_name(struct ra_ctx *ctx, HWND hwnd)
 {
     MONITORINFOEXW info = { .cbSize = sizeof(info) };
@@ -105,7 +186,7 @@ static int get_icc_profile(struct ra_ctx *ctx, HWND hwnd, bstr *profile)
     wchar_t *wdevice = talloc_array(ctx, wchar_t, wlen);
     if (!wlen || !MultiByteToWideChar(CP_UTF8, 0, device, -1, wdevice, wlen))
         return VO_NOTAVAIL;
-    HDC dc = CreateICW(wdevice, NULL, NULL, NULL);
+    HDC dc = CreateICW(L"DISPLAY", wdevice, NULL, NULL);
     if (!dc)
         return VO_FALSE;
     DWORD path_len = MAX_PATH;
@@ -269,9 +350,11 @@ int vksf_windows_control(struct ra_ctx *ctx, int *events, int request, void *arg
     mp_mutex_unlock(&vksf_ctx->ready_lock);
 
     struct priv *p = ctx->priv;
-    if (display_change || (p->dxgi.factory &&
-                           !IDXGIFactory1_IsCurrent(p->dxgi.factory))) {
+    if (display_change) {
         mp_dxgi_factory_uninit(&p->dxgi);
+        p->have_output_snapshot = false;
+    }
+    if (refresh_output_snapshot(ctx, display_change)) {
         *events |= VO_EVENT_RESIZE | VO_EVENT_DPI |
                    VO_EVENT_ICC_PROFILE_CHANGED | VO_EVENT_EXPOSE;
     }
@@ -335,14 +418,11 @@ void vksf_windows_wait_events(struct ra_ctx *ctx, int64_t until_time_ns)
 {
     if (!ctx->vo)
         return;
-    struct vksf_context *vksf_ctx = get_vksf_ctx(ctx);
-    struct priv *p = ctx->priv;
-    if (p->dxgi.factory && !IDXGIFactory1_IsCurrent(p->dxgi.factory)) {
-        mp_dxgi_factory_uninit(&p->dxgi);
+    if (refresh_output_snapshot(ctx, false)) {
         vo_event(ctx->vo, VO_EVENT_DPI | VO_EVENT_RESIZE |
                           VO_EVENT_ICC_PROFILE_CHANGED | VO_EVENT_EXPOSE);
+        return;
     }
-    (void)vksf_ctx;
     until_time_ns = MPMIN(until_time_ns, mp_time_ns() + 1000000000LL);
     vo_wait_default(ctx->vo, until_time_ns);
 }
