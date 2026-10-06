@@ -101,6 +101,11 @@ struct mpv_vksf_window_state {
   bool visible;
   bool focused;
   bool fullscreen;
+  /* Optional monitor snapshot; resolution uses physical pixels. */
+  int display_width;
+  int display_height;
+  double refresh_rate;
+  char display_name[128];
 };
 
 /* ── Lifecycle ───────────────────────────────────────────────────────────── */

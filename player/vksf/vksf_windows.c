@@ -164,6 +164,10 @@ bool vksf_windows_init(struct ra_ctx *ctx)
 
     if (!hwnd) {
         MP_ERR(ctx, "vksf_windows: No HWND provided\n");
+        mp_mutex_lock(&vksf_ctx->ready_lock);
+        vksf_ctx->surface_failed = true;
+        mp_cond_broadcast(&vksf_ctx->ready_cond);
+        mp_mutex_unlock(&vksf_ctx->ready_lock);
         return false;
     }
 
@@ -324,6 +328,7 @@ int vksf_windows_control(struct ra_ctx *ctx, int *events, int request, void *arg
 
 void vksf_windows_wakeup(struct ra_ctx *ctx)
 {
+    // vo_event() already wakes mpv's VO condition variable before this hook.
 }
 
 void vksf_windows_wait_events(struct ra_ctx *ctx, int64_t until_time_ns)

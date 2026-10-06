@@ -48,7 +48,12 @@ static bool resize(struct ra_ctx *ctx)
 static bool vksf_wayland_check_visible(struct ra_ctx *ctx)
 {
     struct vksf_context *v = get_vksf_ctx(ctx);
-    return v && v->visible;
+    if (!v)
+        return false;
+    mp_mutex_lock(&v->ready_lock);
+    bool visible = v->visible;
+    mp_mutex_unlock(&v->ready_lock);
+    return visible;
 }
 
 static struct pl_color_space vksf_wayland_preferred_csp(struct ra_ctx *ctx)
@@ -60,8 +65,11 @@ static struct pl_color_space vksf_wayland_preferred_csp(struct ra_ctx *ctx)
 void vksf_wayland_uninit(struct ra_ctx *ctx)
 {
     struct vksf_context *vksf_ctx = get_vksf_ctx(ctx);
-    if (vksf_ctx)
+    if (vksf_ctx) {
+        mp_mutex_lock(&vksf_ctx->ready_lock);
         vksf_ctx->vo = NULL;
+        mp_mutex_unlock(&vksf_ctx->ready_lock);
+    }
 
     struct priv *p = ctx->priv;
     if (!p)
@@ -189,7 +197,10 @@ int vksf_wayland_control(struct ra_ctx *ctx, int *events, int request, void *arg
     if (vksf_ctx) {
         int w = 0, h = 0;
         bool pending = false;
+        bool display_change = false;
         mp_mutex_lock(&vksf_ctx->ready_lock);
+        display_change = vksf_ctx->display_change_pending;
+        vksf_ctx->display_change_pending = false;
         if (vksf_ctx->resize_pending) {
             w = vksf_ctx->width;
             h = vksf_ctx->height;
@@ -203,11 +214,61 @@ int vksf_wayland_control(struct ra_ctx *ctx, int *events, int request, void *arg
             p->height = h;
             *events |= VO_EVENT_RESIZE;
         }
+        if (display_change)
+            *events |= VO_EVENT_DPI | VO_EVENT_ICC_PROFILE_CHANGED |
+                       VO_EVENT_EXPOSE;
     }
 
     if (*events & VO_EVENT_RESIZE) {
         if (!resize(ctx))
             return VO_ERROR;
+    }
+
+    struct vksf_context *v = get_vksf_ctx(ctx);
+    if (!v)
+        return VO_NOTIMPL;
+    switch (request) {
+    case VOCTRL_GET_WINDOW_ID:
+        *(int64_t *)arg = (int64_t)(intptr_t)p->surface;
+        return VO_TRUE;
+    case VOCTRL_GET_FOCUSED:
+        mp_mutex_lock(&v->ready_lock);
+        *(bool *)arg = v->focused;
+        mp_mutex_unlock(&v->ready_lock);
+        return VO_TRUE;
+    case VOCTRL_GET_HIDPI_SCALE:
+        mp_mutex_lock(&v->ready_lock);
+        *(double *)arg = v->scale;
+        mp_mutex_unlock(&v->ready_lock);
+        return VO_TRUE;
+    case VOCTRL_GET_DISPLAY_RES: {
+        mp_mutex_lock(&v->ready_lock);
+        ((int *)arg)[0] = v->display_width;
+        ((int *)arg)[1] = v->display_height;
+        bool have_resolution = v->display_width > 0 && v->display_height > 0;
+        mp_mutex_unlock(&v->ready_lock);
+        return have_resolution ? VO_TRUE : VO_NOTAVAIL;
+    }
+    case VOCTRL_GET_DISPLAY_FPS: {
+        mp_mutex_lock(&v->ready_lock);
+        *(double *)arg = v->refresh_rate;
+        bool have_refresh = v->refresh_rate > 0;
+        mp_mutex_unlock(&v->ready_lock);
+        return have_refresh ? VO_TRUE : VO_NOTAVAIL;
+    }
+    case VOCTRL_GET_DISPLAY_NAMES: {
+        char **names = talloc_zero_array(ctx, char *, 2);
+        mp_mutex_lock(&v->ready_lock);
+        names[0] = v->display_name[0]
+                       ? talloc_strdup(names, v->display_name) : NULL;
+        mp_mutex_unlock(&v->ready_lock);
+        if (!names[0]) {
+            talloc_free(names);
+            return VO_NOTAVAIL;
+        }
+        *(char ***)arg = names;
+        return VO_TRUE;
+    }
     }
 
     return VO_NOTIMPL;

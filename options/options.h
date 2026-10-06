@@ -52,7 +52,7 @@ typedef struct mp_vo_opts {
     bool wl_present;
 
     float panscan;
-    enum mp_video_fit fit;
+    int fit; // enum mp_video_fit
     float zoom;
     float pan_x, pan_y;
     float align_x, align_y;

@@ -33,6 +33,10 @@ struct vksf_context {
     bool visible;
     bool focused;
     bool fullscreen;
+    int display_width;
+    int display_height;
+    double refresh_rate;
+    char display_name[128];
     bool resize_pending;
     bool display_change_pending;
 

@@ -3,6 +3,7 @@
  */
 
 #include <locale.h>
+#include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +14,7 @@
 #include "common/global.h"
 #include "common/msg.h"
 #include "player/client.h"
+#include "osdep/timer.h"
 #include "video/out/vo.h"
 
 struct mpv_vksf {
@@ -87,12 +89,14 @@ struct mpv_vksf *mpv_vksf_create_ex(const struct mpv_vksf_window *win,
     vksf->vksf_ctx = ctx;
     ctx->win = *win;
     if (host) {
-        if (host->struct_size < sizeof(*host)) {
+        size_t min_size = offsetof(struct mpv_vksf_host_services, userdata) +
+                          sizeof(host->userdata);
+        if (host->struct_size < min_size) {
             free(ctx);
             free(vksf);
             return NULL;
         }
-        ctx->host = *host;
+        memcpy(&ctx->host, host, MPMIN(host->struct_size, sizeof(ctx->host)));
     }
     mp_mutex_init(&ctx->ready_lock);
     mp_cond_init(&ctx->ready_cond);
@@ -156,8 +160,14 @@ struct mpv_vksf *mpv_vksf_create_ex(const struct mpv_vksf_window *win,
 
     // Wait until VO thread creates native surface and signals readiness
     mp_mutex_lock(&ctx->ready_lock);
-    while (!ctx->surface_ready && !ctx->surface_failed)
-        mp_cond_wait(&ctx->ready_cond, &ctx->ready_lock);
+    int64_t ready_deadline = mp_time_ns() + 30LL * 1000000000LL;
+    while (!ctx->surface_ready && !ctx->surface_failed) {
+        if (mp_cond_timedwait_until(&ctx->ready_cond, &ctx->ready_lock,
+                                    ready_deadline) != 0) {
+            ctx->surface_failed = true;
+            fprintf(stderr, "[vksf] Timed out waiting for Vulkan surface initialization\n");
+        }
+    }
     bool surface_failed = ctx->surface_failed;
     mp_mutex_unlock(&ctx->ready_lock);
     if (surface_failed) {
@@ -242,10 +252,11 @@ int mpv_vksf_update_window_state(
     struct mpv_vksf *vksf, const struct mpv_vksf_window_state *state)
 {
     if (!vksf || !vksf->vksf_ctx || !state ||
-        state->struct_size < sizeof(*state) ||
+        state->struct_size < offsetof(struct mpv_vksf_window_state, fullscreen) +
+                             sizeof(state->fullscreen) ||
         state->logical_width < 0 || state->logical_height < 0 ||
         state->framebuffer_width < 0 || state->framebuffer_height < 0 ||
-        state->scale <= 0)
+        !isfinite(state->scale) || state->scale <= 0)
         return MPV_ERROR_INVALID_PARAMETER;
 
     struct vksf_context *ctx = vksf->vksf_ctx;
@@ -262,6 +273,21 @@ int mpv_vksf_update_window_state(
         events |= VO_EVENT_FOCUS;
     if (ctx->visible != state->visible || ctx->fullscreen != state->fullscreen)
         events |= VO_EVENT_WIN_STATE;
+    size_t metadata_end = offsetof(struct mpv_vksf_window_state, display_name) +
+                          sizeof(state->display_name);
+    bool has_monitor_snapshot = state->struct_size >= metadata_end;
+    char display_name[sizeof(state->display_name)] = {0};
+    if (has_monitor_snapshot) {
+        memcpy(display_name, state->display_name, sizeof(display_name));
+        display_name[sizeof(display_name) - 1] = '\0';
+    }
+    if (has_monitor_snapshot &&
+        (ctx->display_width != state->display_width ||
+         ctx->display_height != state->display_height ||
+         ctx->refresh_rate != state->refresh_rate ||
+         strcmp(ctx->display_name, display_name) != 0))
+        events |= VO_EVENT_RESIZE | VO_EVENT_DPI |
+                  VO_EVENT_ICC_PROFILE_CHANGED | VO_EVENT_EXPOSE;
     ctx->logical_width = state->logical_width;
     ctx->logical_height = state->logical_height;
     ctx->width = state->framebuffer_width;
@@ -270,7 +296,15 @@ int mpv_vksf_update_window_state(
     ctx->visible = state->visible;
     ctx->focused = state->focused;
     ctx->fullscreen = state->fullscreen;
-    ctx->resize_pending = (events & VO_EVENT_RESIZE) != 0;
+    if (has_monitor_snapshot) {
+        ctx->display_width = state->display_width;
+        ctx->display_height = state->display_height;
+        ctx->refresh_rate = state->refresh_rate;
+        memcpy(ctx->display_name, display_name, sizeof(ctx->display_name));
+    }
+    // Repeated state notifications must not cancel work that the VO has not
+    // consumed yet (for example WM_SIZE immediately followed by WM_MOVE).
+    ctx->resize_pending |= (events & VO_EVENT_RESIZE) != 0;
     struct vo *vo = ctx->vo;
     mp_mutex_unlock(&ctx->ready_lock);
 
