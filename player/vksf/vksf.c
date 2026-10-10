@@ -154,6 +154,15 @@ struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
     return vksf;
 }
 
+struct mpv_vksf *mpv_vksf_create_ex(
+    const struct mpv_vksf_window *win, const char *const (*options)[2],
+    mpv_vksf_event_cb event_cb, mpv_vksf_log_cb log_cb, void *userdata,
+    const struct mpv_vksf_host_services *host)
+{
+    (void)host;
+    return mpv_vksf_create(win, options, event_cb, log_cb, userdata);
+}
+
 void mpv_vksf_destroy(struct mpv_vksf *vksf)
 {
     if (!vksf)
@@ -208,6 +217,39 @@ int mpv_vksf_update_size(struct mpv_vksf *vksf, int width, int height)
     if (vksf->mpv)
         mpv_wakeup(vksf->mpv);
 
+    return 0;
+}
+
+int mpv_vksf_update_window_state(struct mpv_vksf *vksf,
+                                 const struct mpv_vksf_window_state *state)
+{
+    if (!vksf || !vksf->vksf_ctx || !state ||
+        state->struct_size < sizeof(*state))
+        return MPV_ERROR_INVALID_PARAMETER;
+
+    struct vksf_context *ctx = vksf->vksf_ctx;
+    bool resize = false;
+    // Vulkan swapchain extents are pixels, while Wayland buffer_scale maps
+    // those pixels back to the host's logical surface dimensions.
+    int width = state->framebuffer_width;
+    int height = state->framebuffer_height;
+    if (width <= 0 || height <= 0)
+        return MPV_ERROR_INVALID_PARAMETER;
+    mp_mutex_lock(&ctx->ready_lock);
+    resize = ctx->width != width || ctx->height != height;
+    ctx->window_state = *state;
+    if (resize) {
+        ctx->width = width;
+        ctx->height = height;
+        ctx->resize_pending = true;
+    }
+    struct vo *vo = ctx->vo;
+    mp_mutex_unlock(&ctx->ready_lock);
+
+    if (resize && vo)
+        vo_event(vo, VO_EVENT_RESIZE);
+    if (vksf->mpv)
+        mpv_wakeup(vksf->mpv);
     return 0;
 }
 

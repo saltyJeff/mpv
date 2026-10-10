@@ -26,6 +26,7 @@ struct vksf_context {
     int width;
     int height;
     bool resize_pending;
+    struct mpv_vksf_window_state window_state;
 
     struct vo *vo;
 

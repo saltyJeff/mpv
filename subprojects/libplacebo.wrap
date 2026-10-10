@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://code.videolan.org/videolan/libplacebo.git
-revision = v7.360.1
+revision = 48bd967903ac5f54380a89b07e24abccead7b753
 depth = 1
 
 [provide]

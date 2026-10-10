@@ -25,6 +25,25 @@ typedef enum mpv_vksf_platform {
  * Opaque handle representing one vksf client instance.
  */
 struct mpv_vksf;
+typedef void (*mpv_vksf_host_action)(void *userdata);
+struct mpv_vksf_host_services {
+  uint32_t struct_size;
+  void (*run_on_host_thread)(mpv_vksf_host_action action, void *action_userdata,
+                            void *userdata);
+  void *userdata;
+};
+
+/** Host window/output snapshot. Dimensions are in logical and framebuffer pixels. */
+struct mpv_vksf_window_state {
+  uint32_t struct_size;
+  int logical_width, logical_height;
+  int framebuffer_width, framebuffer_height;
+  int scale;
+  int display_width, display_height;
+  double refresh_rate;
+  char display_name[128];
+  bool visible, focused, fullscreen;
+};
 
 /**
  * Event listener callback type.
@@ -93,6 +112,10 @@ MPV_EXPORT struct mpv_vksf *mpv_vksf_create(const struct mpv_vksf_window *win,
                                             mpv_vksf_event_cb event_cb,
                                             mpv_vksf_log_cb log_cb,
                                             void *userdata);
+MPV_EXPORT struct mpv_vksf *mpv_vksf_create_ex(
+    const struct mpv_vksf_window *win, const char *const (*options)[2],
+    mpv_vksf_event_cb event_cb, mpv_vksf_log_cb log_cb, void *userdata,
+    const struct mpv_vksf_host_services *host);
 
 /**
  * Destroy the vksf client instance.
@@ -118,6 +141,10 @@ MPV_EXPORT void *mpv_vksf_get_native_surface(struct mpv_vksf *vksf);
  */
 MPV_EXPORT int mpv_vksf_update_size(struct mpv_vksf *vksf, int width,
                                     int height);
+
+/** Publish host window/output state. Safe to call from the host UI thread. */
+MPV_EXPORT int mpv_vksf_update_window_state(
+    struct mpv_vksf *vksf, const struct mpv_vksf_window_state *state);
 
 /**
  * Acquire exclusive lock on the VO render/swap path.

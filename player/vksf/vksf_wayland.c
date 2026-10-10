@@ -75,14 +75,19 @@ static bool resize(struct ra_ctx *ctx)
 
 static bool vksf_wayland_check_visible(struct ra_ctx *ctx)
 {
-    struct vo_wayland_state *wl = ctx->vo->wl;
-    return wl && wl->display_fd >= 0;
+    struct vksf_context *vksf_ctx = get_vksf_ctx(ctx);
+    if (!vksf_ctx)
+        return false;
+
+    mp_mutex_lock(&vksf_ctx->ready_lock);
+    bool visible = vksf_ctx->window_state.visible;
+    mp_mutex_unlock(&vksf_ctx->ready_lock);
+    return visible;
 }
 
 static struct pl_color_space vksf_wayland_preferred_csp(struct ra_ctx *ctx)
 {
-    struct pl_color_space csp = {0};
-    return csp;
+    return (struct pl_color_space){0};
 }
 
 static void vksf_wayland_swap_buffers(struct ra_ctx *ctx)
