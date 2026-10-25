@@ -217,7 +217,14 @@ static bool configure_lavrr(struct priv *p, bool verbose)
         mp_aframe_set_chmap(p->pool_fmt, &map_out);
 
     AVChannelLayout in_layout, out_layout;
-    mp_chmap_to_av_layout_custom(&in_layout, &map_in);
+    // FFmpeg 7.1's rematrixer rejects CUSTOM layouts, even when their channel
+    // order is identical to NATIVE. Use the native mask when it preserves the
+    // input order (including standard 5.1), retaining CUSTOM for reordered maps.
+    if (mp_chmap_is_lavc(&map_in)) {
+        mp_chmap_to_av_layout(&in_layout, &map_in);
+    } else {
+        mp_chmap_to_av_layout_custom(&in_layout, &map_in);
+    }
     mp_chmap_to_av_layout(&out_layout, &out_lavc);
     av_opt_set_chlayout(p->avrctx, "in_chlayout",  &in_layout, 0);
     av_opt_set_chlayout(p->avrctx, "out_chlayout", &out_layout, 0);

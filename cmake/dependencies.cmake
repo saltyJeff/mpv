@@ -197,7 +197,7 @@ add_subdirectory("${aom_BINARY_DIR}/source" "${aom_BINARY_DIR}/native" EXCLUDE_F
 FetchContent_Declare(
   ffmpeg
   GIT_REPOSITORY https://github.com/FFmpeg/FFmpeg.git
-  GIT_TAG        n7.1
+  GIT_TAG        n7.1.5
   GIT_SHALLOW    TRUE
   SOURCE_SUBDIR  cmake-unused
 )

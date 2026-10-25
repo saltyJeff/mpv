@@ -54,6 +54,7 @@ class Player:
         for key, value in {
             "config": "no", "vo": "null", "ao": "null",
             "audio-display": "no", "terminal": "no", "image-display-duration": "0.1",
+            "audio-channels": "stereo",
             "af": "lavfi=[atempo=1.25]",
         }.items():
             assert self.option(self.handle, key.encode(), value.encode()) >= 0, key
@@ -111,6 +112,15 @@ def main():
         with wave.open(str(audio), "wb") as wav:
             wav.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
             wav.writeframes(b"\x00\x00" * 4000)
+        # WAVEFORMATEXTENSIBLE identifies the same 5.1(side) layout as E-AC3.
+        # Force stereo output above to exercise mpv's downmix, not just decode.
+        surround = root / "surround-5.1.wav"
+        pcm_guid = bytes.fromhex("0100000000001000800000aa00389b71")
+        fmt = struct.pack("<HHIIHHHHI", 0xfffe, 6, 48000, 576000, 12, 16, 22, 16, 0x60f) + pcm_guid
+        samples = struct.pack("<6h", 1000, -1000, 2000, 0, 500, -500) * 4800
+        payload = b"WAVEfmt " + struct.pack("<I", len(fmt)) + fmt
+        payload += b"data" + struct.pack("<I", len(samples)) + samples
+        surround.write_bytes(b"RIFF" + struct.pack("<I", len(payload)) + payload)
         image = root / "image.png"
         image.write_bytes(
             b"\x89PNG\r\n\x1a\n"
@@ -121,8 +131,9 @@ def main():
         player = Player(dll)
         try:
             player.play(audio)
+            player.play(surround)
             player.play(image)
-            for codec in ("h264", "hevc", "vp9", "av1"):
+            for codec in ("h264", "hevc", "vp9", "av1", "eac3"):
                 player.play(Path(__file__).parent / "fixtures" / f"{codec}.mkv")
             handler = functools.partial(QuietHandler, directory=str(root))
             with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:

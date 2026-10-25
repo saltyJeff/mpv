@@ -9,3 +9,12 @@ libvpx-vp9 and libaom-av1 encoders, respectively. For example:
 ffmpeg -f lavfi -i color=c=red:s=64x64:r=5:d=0.4 -an -frames:v 2 \
   -pix_fmt yuv420p -c:v libaom-av1 -cpu-used 8 -threads 1 av1.mkv
 ```
+
+`eac3.mkv` contains a synthetic 0.2-second 5.1(side) tone. The smoke test
+forces stereo output to exercise decoding and downmixing, including compatibility
+with FFmpeg 7.1's native-only rematrixer:
+
+```sh
+ffmpeg -f lavfi -i 'aevalsrc=0.05*sin(2*PI*440*t):s=48000:d=0.2:c=5.1(side)' \
+  -c:a eac3 -b:a 192k eac3.mkv
+```

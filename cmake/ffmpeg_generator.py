@@ -15,6 +15,7 @@ args = parser.parse_args()
 FFMPEG_SRC = args.source.resolve()
 OUT_DIR = args.output.resolve()
 CONFIG_DIR = OUT_DIR / "config"
+FFMPEG_VERSION = (FFMPEG_SRC / "RELEASE").read_text(encoding="utf-8").strip()
 
 def write_if_changed(path, content, encoding="utf-8"):
     if not path.exists() or path.read_text(encoding=encoding) != content:
@@ -377,9 +378,9 @@ write_if_changed((CONFIG_DIR / "libavutil" / "avconfig.h"), """#ifndef AVUTIL_AV
 #endif /* AVUTIL_AVCONFIG_H */
 """, encoding="utf-8")
 
-write_if_changed((CONFIG_DIR / "libavutil" / "ffversion.h"), """#ifndef AVUTIL_FFVERSION_H
+write_if_changed((CONFIG_DIR / "libavutil" / "ffversion.h"), f"""#ifndef AVUTIL_FFVERSION_H
 #define AVUTIL_FFVERSION_H
-#define FFMPEG_VERSION "7.1"
+#define FFMPEG_VERSION "{FFMPEG_VERSION}"
 #endif /* AVUTIL_FFVERSION_H */
 """, encoding="utf-8")
 
