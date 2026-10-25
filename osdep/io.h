@@ -144,7 +144,9 @@ char *mp_dlerror(void);
 
 // mp_stat types. MSVCRT's dev_t and ino_t are way too short to be unique.
 typedef uint64_t mp_dev_t_;
-#ifdef _WIN64
+#if defined(_WIN64) && defined(_MSC_VER) && !defined(__clang__)
+typedef struct { uint64_t low, high; } mp_ino_t_;
+#elif defined(_WIN64)
 typedef unsigned __int128 mp_ino_t_;
 #else
 // 32-bit Windows doesn't have a __int128-type, which means ReFS file IDs will

@@ -265,7 +265,12 @@ static bool get_file_ids(HANDLE h, dev_t *dev, ino_t *ino)
     if (!GetFileInformationByHandle(h, &bhfi))
         return false;
     *dev = bhfi.dwVolumeSerialNumber;
+#if defined(_WIN64) && defined(_MSC_VER) && !defined(__clang__)
+    *ino = (ino_t){ .low = ((uint64_t)bhfi.nFileIndexHigh << 32) |
+                          bhfi.nFileIndexLow };
+#else
     *ino = ((ino_t)bhfi.nFileIndexHigh << 32) | bhfi.nFileIndexLow;
+#endif
     return true;
 }
 #endif

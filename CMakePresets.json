@@ -1,0 +1,26 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "msvc-2026",
+      "displayName": "MSVC 2026 x64",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/../build/mpv-msvc-2026"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "msvc-2026-release",
+      "configurePreset": "msvc-2026",
+      "configuration": "Release",
+      "targets": ["mpv"]
+    },
+    {
+      "name": "msvc-2026-debug",
+      "configurePreset": "msvc-2026",
+      "configuration": "Debug",
+      "targets": ["mpv"]
+    }
+  ]
+}

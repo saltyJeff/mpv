@@ -397,7 +397,12 @@ static int parse_txt(struct pl_parser *p)
 
 static bool same_st(struct stat *st1, struct stat *st2)
 {
+#if defined(_WIN64) && defined(_MSC_VER) && !defined(__clang__)
+    return st1->st_dev == st2->st_dev &&
+           memcmp(&st1->st_ino, &st2->st_ino, sizeof(st1->st_ino)) == 0;
+#else
     return st1->st_dev == st2->st_dev && st1->st_ino == st2->st_ino;
+#endif
 }
 
 struct pl_dir_entry {

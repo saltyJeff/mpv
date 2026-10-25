@@ -40,6 +40,10 @@
 // For video processor extensions identifiers reference see:
 // https://chromium.googlesource.com/chromium/src/+/5f354f38/ui/gl/swap_chain_presenter.cc
 
+#if defined(_MSC_VER)
+#include <initguid.h>
+#endif
+
 #ifndef NVIDIA_PPE_INTERFACE_GUID
 DEFINE_GUID(NVIDIA_PPE_INTERFACE_GUID,
             0xd43ce1b3, 0x1f4b, 0x48ac, 0xba, 0xee,

@@ -49,7 +49,13 @@ struct ta_header {
 
 #define CANARY 0xD3ADB3EF
 
+#if defined(_MSC_VER) && !defined(__clang__)
+// MSVC does not provide C's max_align_t. Its widest fundamental type has
+// the alignment of long double (which shares double's representation).
+#define MIN_ALIGN _Alignof(long double)
+#else
 #define MIN_ALIGN _Alignof(max_align_t)
+#endif
 union aligned_header {
     struct ta_header ta;
     // Make sure to satisfy typical alignment requirements

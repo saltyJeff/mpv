@@ -7,7 +7,9 @@
 #define MP_EXPAND_ARGS(...) __VA_ARGS__
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#if __has_include(<stdckdint.h>)
 #include <stdckdint.h>
+#endif
 #define MP_NORETURN [[noreturn]]
 #define MP_FALLTHROUGH [[fallthrough]]
 #define MP_WARN_UNUSED_RESULT [[nodiscard]]
@@ -87,6 +89,20 @@
 
 #if defined(__STDC_VERSION_STDCKDINT_H__) && __STDC_VERSION_STDCKDINT_H__ >= 202311L
 #define MP_CKD_MUL(result, a, b) ckd_mul(result, a, b)
+#elif defined(_MSC_VER) && !defined(__clang__)
+#include <limits.h>
+#include <stdint.h>
+#include <stdbool.h>
+// The EDL bitrate calculation is the only current checked-multiply caller.
+// _Generic deliberately rejects unsupported result types rather than narrowing.
+static inline bool mp_ckd_mul_int(int *result, int a, int b)
+{
+    int64_t product = (int64_t)a * b;
+    *result = (int)product;
+    return product < INT_MIN || product > INT_MAX;
+}
+#define MP_CKD_MUL(result, a, b) \
+    _Generic(*(result), int: mp_ckd_mul_int)(result, a, b)
 #else
 #define MP_CKD_MUL(result, a, b) __builtin_mul_overflow(a, b, result)
 #endif

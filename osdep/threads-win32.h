@@ -131,7 +131,7 @@ static inline int mp_exec_once(mp_once *once, void (*init_routine)(void))
 #define MP_THREAD_RETURN() return 0
 
 static inline int mp_thread_create(mp_thread *thread,
-                                   MP_THREAD_VOID (*fun)(void *),
+                                   unsigned (__stdcall *fun)(void *),
                                    void *__restrict arg)
 {
     *thread = (HANDLE) _beginthreadex(NULL, 0, fun, arg, 0, NULL);

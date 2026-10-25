@@ -1,0 +1,85 @@
+[
+  {
+    "path": "src/convert.cc",
+    "before": "f876609d8399d74f2173a9b804d5d641ac74da3e90476769f755b58960758549",
+    "after": "7821d0bdc089f1aa9d45e03f6368f13201a9c205c2be2dd21dcbf1913fd293fa",
+    "edits": [
+      {
+        "old": "    template <typename CT>\n    static auto _(CT s) -> decltype(std::to_chars(s, s, std::declval<T>()), std::true_type{});\n    static auto _(...) -> std::false_type;\n    static constexpr bool value = decltype(_((char *){}))::value;\n};\n\ntemplate <typename T>\n",
+        "new": "    template <typename CT>\n    static auto _(CT s) -> decltype(std::to_chars(s, s, std::declval<T>()), std::true_type{});\n    static auto _(...) -> std::false_type;\n    static constexpr bool value = decltype(_((char *)nullptr))::value;\n};\n\ntemplate <typename T>\n"
+      },
+      {
+        "old": "    template <typename CT>\n    static auto _(CT s) -> decltype(std::from_chars(s, s, std::declval<T&>()), std::true_type{});\n    static auto _(...) -> std::false_type;\n    static constexpr bool value = decltype(_((const char *){}))::value;\n};\n\ntemplate <typename T>\n",
+        "new": "    template <typename CT>\n    static auto _(CT s) -> decltype(std::from_chars(s, s, std::declval<T&>()), std::true_type{});\n    static auto _(...) -> std::false_type;\n    static constexpr bool value = decltype(_((const char *)nullptr))::value;\n};\n\ntemplate <typename T>\n"
+      }
+    ]
+  },
+  {
+    "path": "src/pl_string.h",
+    "before": "8396f6a840e8399dcd363fa3c5054dcf0c9534d4b2408af07632b2ec96420e05",
+    "after": "e84c8006a412810e2170fe0ffbde053fb3793fd7dd7539c7755c0531427c703c",
+    "edits": [
+      {
+        "old": "} pl_str;\n\n// For formatting with \"%.*s\"\n#define PL_STR_FMT(str) (int)((str).len), ((str).buf ? (char *)((str).buf) : \"\")\n\nstatic inline pl_str pl_str0(const char *str)\n{\n    return (pl_str) {\n        .buf = (uint8_t *) str,\n        .len = str ? strlen(str) : 0,\n    };\n}\n\n// Macro version of pl_str0, for constants\n#define PL_STR0(str) ((pl_str) { (uint8_t *) (str), (str) ? strlen(str) : 0 })\n\nstatic inline pl_str pl_strdup(void *alloc, pl_str str)\n{\n    return (pl_str) {\n        .buf = (uint8_t *) (str.len ? pl_memdup(alloc, str.buf, str.len) : NULL),\n        .len = str.len,\n    };\n",
+        "new": "} pl_str;\n\n// For formatting with \"%.*s\"\n#ifdef __cplusplus\n#define PL_STR_LIT(type) type\n#else\n#define PL_STR_LIT(type) (type)\n#endif\n\n#define PL_STR_FMT(str) (int)((str).len), ((str).buf ? (char *)((str).buf) : \"\")\n\nstatic inline pl_str pl_str0(const char *str)\n{\n    return PL_STR_LIT(pl_str) {\n        .buf = (uint8_t *) str,\n        .len = str ? strlen(str) : 0,\n    };\n}\n\n// Macro version of pl_str0, for constants\n#define PL_STR0(str) (PL_STR_LIT(pl_str) { (uint8_t *) (str), (str) ? strlen(str) : 0 })\n\nstatic inline pl_str pl_strdup(void *alloc, pl_str str)\n{\n    return PL_STR_LIT(pl_str) {\n        .buf = (uint8_t *) (str.len ? pl_memdup(alloc, str.buf, str.len) : NULL),\n        .len = str.len,\n    };\n"
+      },
+      {
+        "old": "static inline pl_str pl_str_drop(pl_str str, size_t len)\n{\n    if (len >= str.len)\n        return (pl_str) { .buf = NULL, .len = 0 };\n\n    str.buf += len;\n    str.len -= len;\n",
+        "new": "static inline pl_str pl_str_drop(pl_str str, size_t len)\n{\n    if (len >= str.len)\n        return PL_STR_LIT(pl_str) { .buf = NULL, .len = 0 };\n\n    str.buf += len;\n    str.len -= len;\n"
+      }
+    ]
+  },
+  {
+    "path": "src/pl_thread_win32.h",
+    "before": "fa58008102612bda12f7c05017aee725e7ef80692d007f077348a57edd3a50ee",
+    "after": "ca9333d62297a35a1a691ffaee94853dcc74bb198b2266c3f331d0068fbdf783",
+    "edits": [
+      {
+        "old": "#define PL_THREAD_RETURN() return 0\n\nstatic inline int pl_thread_create(pl_thread *thread,\n                                   PL_THREAD_VOID (*fun)(void *),\n                                   void *__restrict arg)\n{\n    *thread = (HANDLE) _beginthreadex(NULL, 0, fun, arg, 0, NULL);\n",
+        "new": "#define PL_THREAD_RETURN() return 0\n\nstatic inline int pl_thread_create(pl_thread *thread,\n                                   unsigned (__stdcall *fun)(void *),\n                                   void *__restrict arg)\n{\n    *thread = (HANDLE) _beginthreadex(NULL, 0, fun, arg, 0, NULL);\n"
+      }
+    ]
+  },
+  {
+    "path": "src/vulkan/formats.c",
+    "before": "a6ac4d31b8d2f64b8339f5383113164a1f9079b78b0e974ed5a03383f9b592c9",
+    "after": "0c1e6242b98013acd93ab8c35bb6e10831f29ed84a164dae0dd9cb801db3d483",
+    "edits": [
+      {
+        "old": "#include \"formats.h\"\n\n#define FMT(_name, num, size, ftype, bits, idx) \\\n    (struct pl_fmt_t) {                         \\\n        .name = _name,                          \\\n        .type = PL_FMT_##ftype,                 \\\n        .num_components  = num,                 \\\n",
+        "new": "#include \"formats.h\"\n\n#define FMT(_name, num, size, ftype, bits, idx) \\\n    {                         \\\n        .name = _name,                          \\\n        .type = PL_FMT_##ftype,                 \\\n        .num_components  = num,                 \\\n"
+      },
+      {
+        "old": "        IDX(0, 1, 2, 3))\n\n#define EMUFMT(_name, in, en, ib, eb, ftype)    \\\n    (struct pl_fmt_t) {                         \\\n        .name = _name,                          \\\n        .type = PL_FMT_##ftype,                 \\\n        .num_components  = en,                  \\\n",
+        "new": "        IDX(0, 1, 2, 3))\n\n#define EMUFMT(_name, in, en, ib, eb, ftype)    \\\n    {                         \\\n        .name = _name,                          \\\n        .type = PL_FMT_##ftype,                 \\\n        .num_components  = en,                  \\\n"
+      },
+      {
+        "old": "    }\n\n#define PACKED16FMT(_name, num, b)              \\\n    (struct pl_fmt_t) {                         \\\n        .name            = _name,               \\\n        .type            = PL_FMT_UNORM,        \\\n        .num_components  = num,                 \\\n",
+        "new": "    }\n\n#define PACKED16FMT(_name, num, b)              \\\n    {                         \\\n        .name            = _name,               \\\n        .type            = PL_FMT_UNORM,        \\\n        .num_components  = num,                 \\\n"
+      },
+      {
+        "old": "    }\n\n#define PLANARFMT(_name, planes, size, bits)    \\\n    (struct pl_fmt_t) {                         \\\n        .name            = _name,               \\\n        .type            = PL_FMT_UNORM,        \\\n        .num_planes      = planes,              \\\n",
+        "new": "    }\n\n#define PLANARFMT(_name, planes, size, bits)    \\\n    {                         \\\n        .name            = _name,               \\\n        .type            = PL_FMT_UNORM,        \\\n        .num_planes      = planes,              \\\n"
+      },
+      {
+        "old": "    // Regular, byte-aligned integer formats\n    {VK_FORMAT_R8_UNORM,              REGFMT(\"r8\",       1,  8, UNORM)},\n    {VK_FORMAT_R8G8_UNORM,            REGFMT(\"rg8\",      2,  8, UNORM)},\n    {VK_FORMAT_R8G8B8_UNORM,          REGFMT(\"rgb8\",     3,  8, UNORM), .emufmt = &rgb8e},\n    {VK_FORMAT_R8G8B8A8_UNORM,        REGFMT(\"rgba8\",    4,  8, UNORM)},\n    {VK_FORMAT_R16_UNORM,             REGFMT(\"r16\",      1, 16, UNORM)},\n    {VK_FORMAT_R16G16_UNORM,          REGFMT(\"rg16\",     2, 16, UNORM)},\n    {VK_FORMAT_R16G16B16_UNORM,       REGFMT(\"rgb16\",    3, 16, UNORM), .emufmt = &rgb16e},\n    {VK_FORMAT_R16G16B16A16_UNORM,    REGFMT(\"rgba16\",   4, 16, UNORM)},\n\n    {VK_FORMAT_R8_SNORM,              REGFMT(\"r8s\",      1,  8, SNORM)},\n",
+        "new": "    // Regular, byte-aligned integer formats\n    {VK_FORMAT_R8_UNORM,              REGFMT(\"r8\",       1,  8, UNORM)},\n    {VK_FORMAT_R8G8_UNORM,            REGFMT(\"rg8\",      2,  8, UNORM)},\n    {.tfmt = VK_FORMAT_R8G8B8_UNORM, .fmt = REGFMT(\"rgb8\", 3, 8, UNORM), .emufmt = &rgb8e},\n    {VK_FORMAT_R8G8B8A8_UNORM,        REGFMT(\"rgba8\",    4,  8, UNORM)},\n    {VK_FORMAT_R16_UNORM,             REGFMT(\"r16\",      1, 16, UNORM)},\n    {VK_FORMAT_R16G16_UNORM,          REGFMT(\"rg16\",     2, 16, UNORM)},\n    {.tfmt = VK_FORMAT_R16G16B16_UNORM, .fmt = REGFMT(\"rgb16\", 3, 16, UNORM), .emufmt = &rgb16e},\n    {VK_FORMAT_R16G16B16A16_UNORM,    REGFMT(\"rgba16\",   4, 16, UNORM)},\n\n    {VK_FORMAT_R8_SNORM,              REGFMT(\"r8s\",      1,  8, SNORM)},\n"
+      }
+    ]
+  },
+  {
+    "path": "src/vulkan/gpu_pass.c",
+    "before": "7b1106eb331ae82ba487f0d3b43f125348b08383dee1ba5732dfd05a2e9a0d03",
+    "after": "c17f026234ad5bffe50e80e17bea16c76f07425386d2474b192e83a25a4a16c4",
+    "edits": [
+      {
+        "old": "}\n\nstatic const VkPipelineStageFlags2 shaderStages[] = {\n    [PL_PASS_RASTER]  = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,\n    [PL_PASS_COMPUTE] = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,\n};\n\nstatic void vk_update_descriptor(pl_gpu gpu, struct vk_cmd *cmd, pl_pass pass,\n",
+        "new": "}\n\nstatic const VkPipelineStageFlags2 shaderStages[] = {\n    [PL_PASS_RASTER]  = 0x00000080ULL,\n    [PL_PASS_COMPUTE] = 0x00000800ULL,\n};\n\nstatic void vk_update_descriptor(pl_gpu gpu, struct vk_cmd *cmd, pl_pass pass,\n"
+      },
+      {
+        "old": "    };\n\n    static const VkAccessFlags2 storageAccess[PL_DESC_ACCESS_COUNT] = {\n        [PL_DESC_ACCESS_READONLY]   = VK_ACCESS_2_SHADER_STORAGE_READ_BIT,\n        [PL_DESC_ACCESS_WRITEONLY]  = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,\n        [PL_DESC_ACCESS_READWRITE]  = VK_ACCESS_2_SHADER_STORAGE_READ_BIT |\n                                      VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,\n    };\n\n    switch (desc->type) {\n",
+        "new": "    };\n\n    static const VkAccessFlags2 storageAccess[PL_DESC_ACCESS_COUNT] = {\n        [PL_DESC_ACCESS_READONLY]   = 0x200000000ULL,\n        [PL_DESC_ACCESS_WRITEONLY]  = 0x400000000ULL,\n        [PL_DESC_ACCESS_READWRITE]  = 0x200000000ULL | 0x400000000ULL,\n    };\n\n    switch (desc->type) {\n"
+      }
+    ]
+  }
+]
