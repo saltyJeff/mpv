@@ -69,8 +69,22 @@ fix. Source overrides are supported through CMake's standard
 
 The smoke test uses generated local fixtures. It checks the public libmpv and
 VKSF exports, initialization, Unicode paths, PCM/PNG and H.264/HEVC/VP9/AV1
-decoding, atempo, and HTTP transport. GPU presentation, hardware decoding and HDR/ICC behavior
-also need playback validation with a compatible display and driver.
+decoding, atempo, and HTTP transport. It uses `vo=null`, so it cannot detect
+shader compilation or presentation failures.
+
+On a Windows desktop with a Vulkan driver and Python's Tk module, run the
+separate rendering regression test:
+
+```powershell
+python test/msvc_render_smoke.py ../build/mpv-msvc-2026/Release/libmpv-2.dll
+```
+
+Alternatively, configure with `-DMPV_BUILD_RENDER_TESTS=ON` to include it in
+CTest. It exercises VKSF and GPU screenshots for H.264/HEVC/VP9/AV1, rejecting
+render errors and software screenshot fallback. The native libplacebo build
+probes shaderc's Vulkan target enums, matching Meson; missing capability flags
+can otherwise pair SPIR-V 1.6 with Vulkan 1.2 and break every render pass.
+Hardware decoding and HDR/ICC behavior still need separate playback validation.
 
 Linux retains Reemio's existing Meson integration in `cmake/libmpv.cmake`.
 The native CMake source/configuration profile currently targets Windows x64.

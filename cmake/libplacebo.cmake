@@ -3,6 +3,25 @@
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+# Match libplacebo's Meson shaderc capability checks. Without these defines,
+# spirv_shaderc.c assumes Vulkan 1.2 even when shaderc emits SPIR-V 1.6,
+# causing every render pass to fail validation on Vulkan 1.3+ devices.
+include(CheckCSourceCompiles)
+include(CMakePushCheckState)
+cmake_push_check_state(RESET)
+set(CMAKE_REQUIRED_INCLUDES "${shaderc_SOURCE_DIR}/libshaderc/include")
+set(PLACEBO_SHADERC_DEFS "")
+foreach(minor IN ITEMS 3 4)
+  check_c_source_compiles("
+    #include <shaderc/shaderc.h>
+    int main(void) { return shaderc_env_version_vulkan_1_${minor} == 0; }
+  " PL_HAVE_SHADERC_VK_1_${minor})
+  if(PL_HAVE_SHADERC_VK_1_${minor})
+    string(APPEND PLACEBO_SHADERC_DEFS "#define PL_HAVE_SHADERC_VK_1_${minor} 1\n")
+  endif()
+endforeach()
+cmake_pop_check_state()
+
 set(PLACEBO_UPSTREAM_DIR "${libplacebo_SOURCE_DIR}")
 set(libplacebo_SOURCE_DIR "${libplacebo_BINARY_DIR}/msvc-source")
 set(majorver 7)
@@ -37,7 +56,7 @@ file(CONFIGURE OUTPUT "${libplacebo_BINARY_DIR}/src/config_internal.h" CONTENT
 #define BUILD_API_VER 371
 #define BUILD_FIX_VER 0
 #define PL_HAVE_DBGHELP 1
-
+${PLACEBO_SHADERC_DEFS}
 #ifdef _MSC_VER
 #include <intrin.h>
 #ifndef _USE_MATH_DEFINES

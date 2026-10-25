@@ -506,9 +506,18 @@ endif()
 add_library(mpv::libmpv ALIAS mpv)
 
 option(MPV_BUILD_TESTS "Enable the native DLL runtime smoke test" ${PROJECT_IS_TOP_LEVEL})
-if(MPV_BUILD_TESTS)
+option(MPV_BUILD_RENDER_TESTS "Enable VKSF rendering tests (requires Tk and a Vulkan GPU)" OFF)
+if(MPV_BUILD_TESTS OR MPV_BUILD_RENDER_TESTS)
   enable_testing()
+endif()
+if(MPV_BUILD_TESTS)
   add_test(NAME mpv_msvc_smoke
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/msvc_smoke.py" "$<TARGET_FILE:mpv>"
   )
+endif()
+if(MPV_BUILD_RENDER_TESTS)
+  add_test(NAME mpv_msvc_render_smoke
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/msvc_render_smoke.py" "$<TARGET_FILE:mpv>"
+  )
+  set_tests_properties(mpv_msvc_render_smoke PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
 endif()
